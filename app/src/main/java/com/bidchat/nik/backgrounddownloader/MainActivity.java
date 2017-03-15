@@ -1,7 +1,9 @@
 package com.bidchat.nik.backgrounddownloader;
 
+import android.app.Activity;
 import android.app.DownloadManager;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -19,9 +21,9 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.RemoteViews;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
     public static String DOWNLOAD_ID = "download_id";
-    public final String TAG = MainActivity.this.getClass().getCanonicalName();
+    public final String TAG = getClass().getCanonicalName();
 
     // static String DOWNLOAD_URL = "https://drive.google.com/uc?export=download&id=0B_dZD4JMRRVecmNvMHVLWlUxUGM";
     static String DOWNLOAD_URL = "https://bidchatlivecdn156.bidchat.tv/UyT7ij3QQg2trtM-jiX5x/12588-360.mp4";
@@ -33,6 +35,8 @@ public class MainActivity extends AppCompatActivity {
 
     private NotificationManager mNotifyManager;
     private NotificationCompat.Builder mBuilder;
+
+    // private static final String MyOnClick = "myOnClickTag";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,64 +57,7 @@ public class MainActivity extends AppCompatActivity {
                 AsyncTask.execute(new Runnable() {
                     @Override
                     public void run() {
-                        boolean downloading = true;
-                        while (downloading) {
-                            DownloadManager.Query q = new DownloadManager.Query();
-                            q.setFilterById(enqueue);
-                            Cursor cursor = dm.query(q);
-                            if (cursor != null) {
-                                cursor.moveToFirst();
-                                int bytes_downloaded = cursor.getInt(cursor
-                                        .getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-                                int bytes_total = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
-                                final long downLoadId = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_ID));
-                                if (cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_SUCCESSFUL) {
-                                    downloading = false;
-                                }
-                                Log.d(TAG, "Bytes Downloaded : " + bytes_downloaded);
-                                Log.d(TAG, "Bytes Total : " + bytes_total);
-                                Log.d(TAG, "Download ID : " + downLoadId);
-                                final double ddl_progress = ((bytes_downloaded * 100) / bytes_total);
-                                Log.d(TAG, "Downloaded - Double : " + ddl_progress);
-                                final int dl_progress = (int) ((bytes_downloaded * 100) / bytes_total);
-                                Log.d(TAG, "Run task on UI thread - Percentage Downloaded : " + dl_progress);
 
-                                if (dl_progress > 6) {
-                                    Log.d(TAG, "Cancel Download ID : " + downLoadId);
-                                    Log.d(TAG, "Percent Downloaded : " + dl_progress);
-                                    downloading = false;
-                                    MainActivity.this.runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            dm.remove(downLoadId);
-                                            mNotifyManager.cancel((int) downLoadId);
-                                        }
-                                    });
-                                }
-
-                                /**
-                                MainActivity.this.runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        mBuilder.getContentView().setProgressBar(R.id.progress_download, 100, dl_progress, false);
-                                        mNotifyManager.notify((int) downLoadId, mBuilder.build());
-                                    }
-                                });
-                                */
-
-                                Log.d(TAG, "Percent Downloaded : " + dl_progress);
-                                mBuilder.getContentView().setProgressBar(R.id.progress_download, 100, dl_progress, false);
-                                mNotifyManager.notify((int) downLoadId, mBuilder.build());
-
-//                                new Handler(Looper.getMainLooper()).post(new Runnable() {
-//                                    @Override
-//                                    public void run() {
-//
-//                                    }
-//                                });
-                                cursor.close();
-                            }
-                        }
                     }
                 });
 
@@ -168,10 +115,11 @@ public class MainActivity extends AppCompatActivity {
         contentView.setProgressBar(R.id.progress_download, 100, 0, false);
         contentView.setTextViewText(R.id.text_status, "Download in progress");
         contentView.setImageViewResource(R.id.right_icon, R.drawable.ic_cancel);
-
         mBuilder.setContentTitle(download_title)
                 .setContentText("Download in progress")
                 .setSmallIcon(R.drawable.ic_notification).setCustomContentView(contentView);
+        DownloadFileTask runTask = new DownloadFileTask();
+        runTask.execute();
 
         /*
         mNotifyManager =
@@ -217,4 +165,64 @@ public class MainActivity extends AppCompatActivity {
         ).start();
         */
     }
+
+    private class DownloadFileTask extends AsyncTask<String, Integer, Integer> {
+        boolean downloading = true;
+
+        @Override
+        protected Integer doInBackground(String... params) {
+            while (downloading) {
+                DownloadManager.Query q = new DownloadManager.Query();
+                q.setFilterById(enqueue);
+                Cursor cursor = dm.query(q);
+                if (cursor != null) {
+                    cursor.moveToFirst();
+                    int bytes_downloaded = cursor.getInt(cursor
+                            .getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    int bytes_total = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    final long downLoadId = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_ID));
+                    if (cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_SUCCESSFUL) {
+                        downloading = false;
+                    }
+                    final int dl_progress = (int) Math.ceil((bytes_downloaded * 100) / bytes_total);
+                    // Log.d(TAG, "Run task on UI thread - Percentage Downloaded : " + dl_progress);
+                    publishProgress(dl_progress, (int) downLoadId);
+                    cursor.close();
+                }
+            }
+            return 0;
+        }
+
+        protected void onProgressUpdate(final Integer... params) {
+            // Log.d(TAG, "Progress : " + params[0]);
+            if (params[0] > 5) {
+                Log.d(TAG, "Cancel Download ID : " + params[1]);
+                Log.d(TAG, "Percent Downloaded : " + params[0]);
+                downloading = false;
+                MainActivity.this.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        dm.remove(params[1]);
+                        mNotifyManager.cancel((int) params[1]);
+                    }
+                });
+            } else {
+                mBuilder.getContentView().setProgressBar(R.id.progress_download, 100, params[0], false);
+                Intent cancelDownloadIntent = new Intent(MainActivity.this, CancelDownloadActivity.class);
+                cancelDownloadIntent.putExtra(MainActivity.DOWNLOAD_ID, params[1]);
+                // mBuilder.getContentView().setOnClickPendingIntent(R.id.right_icon, PendingIntent.getActivity(getApplicationContext(), 0, cancelDownloadIntent, 0));
+                mBuilder.getContentView().setOnClickPendingIntent(R.id.right_icon,
+                        getPendingSelfIntent(MainActivity.this, params[1]));
+                mNotifyManager.notify(params[1], mBuilder.build());
+            }
+        }
+
+        protected PendingIntent getPendingSelfIntent(Context context, int action) {
+            Intent intent = new Intent(context, getClass());
+            intent.setAction(String.valueOf(action));
+            return PendingIntent.getBroadcast(context, 0, intent, 0);
+        }
+    }
+
+
 }

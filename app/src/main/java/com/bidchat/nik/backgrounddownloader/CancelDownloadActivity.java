@@ -6,7 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 public class CancelDownloadActivity extends AppCompatActivity {
-    public final String TAG = CancelDownloadActivity.this.getClass().getCanonicalName();
+    public final String TAG = getClass().getCanonicalName();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
