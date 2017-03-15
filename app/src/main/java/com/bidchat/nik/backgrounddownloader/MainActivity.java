@@ -217,7 +217,7 @@ public class MainActivity extends Activity {
             }
         }
 
-        protected PendingIntent getPendingSelfIntent(Context context, int action) {
+        PendingIntent getPendingSelfIntent(Context context, int action) {
             Intent intent = new Intent(context, getClass());
             intent.setAction(String.valueOf(action));
             return PendingIntent.getBroadcast(context, 0, intent, 0);
