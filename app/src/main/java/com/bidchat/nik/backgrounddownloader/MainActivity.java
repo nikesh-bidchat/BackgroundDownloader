@@ -12,9 +12,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.support.v7.app.AppCompatActivity;
 import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 import android.view.View;
@@ -24,6 +21,7 @@ import android.widget.RemoteViews;
 public class MainActivity extends Activity {
     public static String DOWNLOAD_ID = "download_id";
     public final String TAG = getClass().getCanonicalName();
+    public static boolean isFirstTime = false;
 
     // static String DOWNLOAD_URL = "https://drive.google.com/uc?export=download&id=0B_dZD4JMRRVecmNvMHVLWlUxUGM";
     static String DOWNLOAD_URL = "https://bidchatlivecdn156.bidchat.tv/UyT7ij3QQg2trtM-jiX5x/12588-360.mp4";
@@ -52,15 +50,7 @@ public class MainActivity extends Activity {
                         Uri.parse(DOWNLOAD_URL));
                 enqueue = dm.enqueue(request);
 
-                customeDownloadNotification("Downloading");
-
-                AsyncTask.execute(new Runnable() {
-                    @Override
-                    public void run() {
-
-                    }
-                });
-
+                customDownloadNotification((int) enqueue, "Downloading");
                 final Thread newThread = new Thread(new Runnable() {
 
                     @Override
@@ -82,7 +72,7 @@ public class MainActivity extends Activity {
                             DownloadManager.EXTRA_DOWNLOAD_ID, 0);
                     Log.d(TAG, "Download ID : " + downloadId);
                     DownloadManager.Query query = new DownloadManager.Query();
-                    query.setFilterById(enqueue);
+                    // query.setFilterById(downloadId);
                     Cursor c = dm.query(query);
                     if (c.moveToFirst()) {
                         int columnIndex = c
@@ -93,9 +83,10 @@ public class MainActivity extends Activity {
                                     .getString(c
                                             .getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
                             Log.d(TAG, "URI : " + uriString);
+
+                            mNotifyManager.cancel((int) downloadId);
                         }
                     }
-                    mNotifyManager.cancel((int) downloadId);
                 }
             }
         };
@@ -104,7 +95,7 @@ public class MainActivity extends Activity {
                 DownloadManager.ACTION_DOWNLOAD_COMPLETE));
     }
 
-    public void customeDownloadNotification(String download_title) {
+    public void customDownloadNotification(int downloadId, String download_title) {
 
         mNotifyManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -112,12 +103,13 @@ public class MainActivity extends Activity {
         RemoteViews contentView = new RemoteViews(getPackageName(), R.layout.download_notification_layout);
         contentView.setImageViewResource(R.id.image_icon, R.drawable.ic_notification);
         contentView.setTextViewText(R.id.text_title, download_title);
-        contentView.setProgressBar(R.id.progress_download, 100, 0, false);
-        contentView.setTextViewText(R.id.text_status, "Download in progress");
+        contentView.setProgressBar(R.id.progress_download, 100, 0, true);
+        contentView.setTextViewText(R.id.text_status_message, "Download in progress");
         contentView.setImageViewResource(R.id.right_icon, R.drawable.ic_cancel);
         mBuilder.setContentTitle(download_title)
                 .setContentText("Download in progress")
                 .setSmallIcon(R.drawable.ic_notification).setCustomContentView(contentView);
+
         DownloadFileTask runTask = new DownloadFileTask();
         runTask.execute();
 
