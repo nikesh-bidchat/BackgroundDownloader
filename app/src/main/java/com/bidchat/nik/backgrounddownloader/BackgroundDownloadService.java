@@ -27,6 +27,7 @@ public class BackgroundDownloadService extends Service {
     public String TAG = "Call From Service";
     NotificationManager mNotifyManager;
     NotificationCompat.Builder mBuilder;
+    Timer timer;
 
     @Override
     public void onCreate() {
@@ -63,11 +64,23 @@ public class BackgroundDownloadService extends Service {
                             .getColumnIndex(DownloadManager.COLUMN_STATUS);
                     if (DownloadManager.STATUS_SUCCESSFUL == c
                             .getInt(columnIndex)) {
+
                         String uriString = c
                                 .getString(c
                                         .getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
+                        String title = c
+                                .getString(c
+                                        .getColumnIndex(DownloadManager.COLUMN_TITLE));
+                        String description = c
+                                .getString(c
+                                        .getColumnIndex(DownloadManager.COLUMN_DESCRIPTION));
+                        long length = c
+                                .getLong(c
+                                        .getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                        downloadManager.addCompletedDownload(title, description, true, downloadManager.getMimeTypeForDownloadedFile(downloadId), uriString, length, false);
+                        downloadManager.remove(downloadId);
                         Log.d(TAG, "Download Complete -> Download ID : " + downloadId);
-                        updateNotification(context, (int) downloadId, 100, "Download Title", "Download complete");
+                        updateNotification(context, (int) downloadId, 100, title, "Download complete");
                         Log.d(TAG, "URI : " + uriString);
                     }
                 }
@@ -82,7 +95,7 @@ public class BackgroundDownloadService extends Service {
         mNotifyManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mBuilder = new NotificationCompat.Builder(context);
-        Timer timer = new Timer();
+        timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
@@ -116,21 +129,40 @@ public class BackgroundDownloadService extends Service {
                         DownloadManager.Query query = new DownloadManager.Query();
                         Cursor cursor = downloadManager.query(query);
                         if (cursor != null) {
+                            if (cursor.getCount() == 0) {
+                                timer.cancel();
+                            }
                             while (cursor.moveToNext()) {
-                                int bytes_downloaded = cursor.getInt(cursor
-                                        .getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-                                int bytes_total = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
                                 long downloadId = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_ID));
-                                String downloadTitle = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_TITLE));
-                                if (cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)) == DownloadManager.STATUS_RUNNING) {
-                                    final int downloadProgress = (int) Math.ceil((bytes_downloaded * 100) / bytes_total);
-                                    Log.d(TAG, "Download Progress : " + downloadProgress);
-                                    updateNotification(context, (int) downloadId, downloadProgress, downloadTitle, "Download in progress");
-                                    if (downloadProgress > 3) {
+                                int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
+                                switch (status) {
+                                    case DownloadManager.STATUS_PENDING:
+                                        Log.d(TAG, "STATUS_PENDING");
+                                        //here you can set your TIMEOUT solution
+                                        break;
+                                    case DownloadManager.STATUS_PAUSED:
+                                        Log.d(TAG, "STATUS_PAUSED");
+                                        break;
+                                    case DownloadManager.STATUS_RUNNING:
+                                        Log.d(TAG, "STATUS_RUNNING");
+                                        long bytesDownloaded = cursor.getInt(cursor
+                                                .getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                                        long bytesTotal = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                                        String downloadTitle = cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_TITLE));
+                                        double tempProgress = (bytesDownloaded * 100) / bytesTotal;
+                                        int downloadProgress = (int) Math.ceil(tempProgress);
+                                        Log.d(TAG, "Download Progress : " + downloadProgress);
+                                        updateNotification(context, (int) downloadId, downloadProgress, downloadTitle, "Download in progress");
+                                        break;
+                                    case DownloadManager.STATUS_SUCCESSFUL:
+                                        Log.d(TAG, "STATUS_SUCCESSFUL");
+                                        break;
+                                    case DownloadManager.STATUS_FAILED:
+                                        Log.d(TAG, "STATUS_FAILED");
+                                        Log.d(TAG, "REASON : " + cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_REASON)));
                                         downloadManager.remove(downloadId);
-                                    }
-                                } else
-                                    downloadManager.remove(downloadId);
+                                        break;
+                                }
                             }
                             cursor.close();
                         }
@@ -142,7 +174,7 @@ public class BackgroundDownloadService extends Service {
 
     public void updateNotification(Context context, int downloadId, int downloadProgress, String downloadTitle, String downloadMessage) {
         RemoteViews contentView = new RemoteViews(getPackageName(), R.layout.download_notification_layout);
-        contentView.setImageViewResource(R.id.image_icon, R.drawable.ic_notification);
+        contentView.setImageViewResource(R.id.image_icon, R.mipmap.ic_launcher_round);
         contentView.setTextViewText(R.id.text_title, downloadTitle);
         contentView.setProgressBar(R.id.progress_download, 100, downloadProgress, false);
         contentView.setTextViewText(R.id.text_status_message, downloadMessage);
@@ -156,7 +188,7 @@ public class BackgroundDownloadService extends Service {
 
         mBuilder.setContentTitle(downloadTitle)
                 .setContentText(downloadMessage)
-                .setSmallIcon(R.drawable.ic_notification).setCustomContentView(contentView);
+                .setSmallIcon(R.mipmap.ic_launcher_round).setCustomContentView(contentView);
 
         Intent cancelIntent = new Intent(BackgroundActivity.DOWNLOAD_CANCEL);
         cancelIntent.putExtra(BackgroundActivity.DOWNLOAD_ID, downloadId);
